@@ -46,6 +46,74 @@ const NeuralNetworkDiagram = () => {
     setWeights2(prev => ({ ...prev, [key]: parseFloat(value) || 0 }));
   };
 
+  // 역전파 정보 계산
+  const getBackpropInfo = (selectedInfo) => {
+    if (!selectedInfo) return null;
+
+    if (selectedInfo.type === 'weight') {
+      const { id, from, to, value } = selectedInfo.data;
+      
+      // W(1)_nm: y1, y2에 대한 영향을 W(2)_jn을 통해 계산
+      if (id.startsWith('w1_')) {
+        const sub = id.slice(3); // "11", "21" 등
+        const n = sub[0]; // 첫 번째 인덱스 (hidden 노드)
+        
+        // y1에 대한 영향: W(2)_1n 값
+        const w2_1n_key = `w${1}${n}`;
+        const w2_1n_value = weights2[w2_1n_key];
+        
+        // y2에 대한 영향: W(2)_2n 값
+        const w2_2n_key = `w${2}${n}`;
+        const w2_2n_value = weights2[w2_2n_key];
+        
+        return {
+          y1: {
+            derivative: w2_1n_value,
+            weightLabel: `W⁽²⁾₁${n}`,
+            effect: w2_1n_value > 0 ? '증가' : '감소'
+          },
+          y2: {
+            derivative: w2_2n_value,
+            weightLabel: `W⁽²⁾₂${n}`,
+            effect: w2_2n_value > 0 ? '증가' : '감소'
+          }
+        };
+      }
+      
+      // W(2)_nm: y1, y2에 대한 영향을 a(1)_m을 통해 계산
+      if (id.startsWith('w2_')) {
+        const sub = id.slice(3); // "11", "21" 등
+        const outputIdx = sub[0]; // 출력 노드 인덱스 (1 or 2)
+        const hiddenIdx = sub[1]; // hidden 노드 인덱스
+        
+        const hiddenKey = `a${hiddenIdx}`;
+        const hiddenValue = hiddenValues[hiddenKey];
+        
+        if (outputIdx === '1') {
+          return {
+            y1: {
+              derivative: hiddenValue,
+              weightLabel: `a⁽¹⁾${hiddenIdx}`,
+              effect: hiddenValue > 0 ? '증가' : '감소'
+            },
+            y2: null
+          };
+        } else {
+          return {
+            y1: null,
+            y2: {
+              derivative: hiddenValue,
+              weightLabel: `a⁽¹⁾${hiddenIdx}`,
+              effect: hiddenValue > 0 ? '증가' : '감소'
+            }
+          };
+        }
+      }
+    }
+    
+    return null;
+  };
+
   // 선택된 요소의 정보 가져오기
   const getSelectedInfo = () => {
     if (selectedNode) {
@@ -256,98 +324,234 @@ const NeuralNetworkDiagram = () => {
             </button>
           </div>
 
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 mb-4">
-            <div className="text-sm text-gray-600 mb-2">선택된 요소</div>
-            <div className="text-lg font-semibold text-gray-800">
-              {selectedInfo.type === 'node' && (
-                <span>
-                  {selectedInfo.data.base}
-                  {selectedInfo.data.super && <sup className="text-sm">{selectedInfo.data.super}</sup>}
-                  {selectedInfo.data.sub && <sub className="text-sm">{selectedInfo.data.sub}</sub>}
-                </span>
+          <div className="flex gap-6">
+            {/* 왼쪽: 설정 영역 */}
+            <div className="flex-1">
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 mb-4">
+                <div className="text-sm text-gray-600 mb-2">선택된 요소</div>
+                <div className="text-lg font-semibold text-gray-800">
+                  {selectedInfo.type === 'node' && (
+                    <span>
+                      {selectedInfo.data.base}
+                      {selectedInfo.data.super && <sup className="text-sm">{selectedInfo.data.super}</sup>}
+                      {selectedInfo.data.sub && <sub className="text-sm">{selectedInfo.data.sub}</sub>}
+                    </span>
+                  )}
+                  {selectedInfo.type === 'weight' && (
+                    <span>
+                      {selectedInfo.data.base}
+                      {selectedInfo.data.super && <sup className="text-sm">{selectedInfo.data.super}</sup>}
+                      {selectedInfo.data.sub && <sub className="text-sm">{selectedInfo.data.sub}</sub>}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* 입력 노드 설정 */}
+              {selectedInfo.type === 'node' && selectedInfo.data.id.startsWith('x') && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      입력 값 선택
+                    </label>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => updateInputValue(selectedInfo.data.id, 0)}
+                        className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all duration-200 ${
+                          selectedInfo.data.value === 0
+                            ? 'bg-blue-500 text-white shadow-lg scale-105'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        0
+                      </button>
+                      <button
+                        onClick={() => updateInputValue(selectedInfo.data.id, 1)}
+                        className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all duration-200 ${
+                          selectedInfo.data.value === 1
+                            ? 'bg-blue-500 text-white shadow-lg scale-105'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        1
+                      </button>
+                    </div>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="text-sm text-blue-800 text-center">
+                      현재 값: <span className="font-bold text-xl">{selectedInfo.data.value}</span>
+                    </div>
+                  </div>
+                </div>
               )}
+
+              {/* 가중치 설정 */}
               {selectedInfo.type === 'weight' && (
-                <span>
-                  {selectedInfo.data.base}
-                  {selectedInfo.data.super && <sup className="text-sm">{selectedInfo.data.super}</sup>}
-                  {selectedInfo.data.sub && <sub className="text-sm">{selectedInfo.data.sub}</sub>}
-                </span>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      가중치 값 조절
+                    </label>
+                    <div className="space-y-3">
+                      <input
+                        type="range"
+                        min="-1"
+                        max="1"
+                        step="0.01"
+                        value={selectedInfo.data.value}
+                        onChange={(e) => {
+                          const id = selectedInfo.data.id;
+                          if (id.startsWith('w1_')) {
+                            const key = 'w' + id.slice(3);
+                            updateWeight1(key, e.target.value);
+                          } else if (id.startsWith('w2_')) {
+                            const key = 'w' + id.slice(3);
+                            updateWeight2(key, e.target.value);
+                          }
+                        }}
+                        className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
+                        style={{
+                          background: `linear-gradient(to right, 
+                            #ef4444 0%, 
+                            #fbbf24 50%, 
+                            #22c55e 100%)`
+                        }}
+                      />
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>-1.0</span>
+                        <span>0.0</span>
+                        <span>1.0</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div 
+                    className="rounded-lg p-3 border-2 transition-all duration-200"
+                    style={{
+                      backgroundColor: (() => {
+                        const val = selectedInfo.data.value;
+                        if (val < 0) {
+                          // -1 ~ 0: 빨간색에서 노란색으로
+                          const ratio = (val + 1); // 0 ~ 1
+                          return `rgb(${239 - ratio * (239 - 251)}, ${68 + ratio * (187 - 68)}, ${68 + ratio * (20 - 68)})`;
+                        } else {
+                          // 0 ~ 1: 노란색에서 초록색으로
+                          const ratio = val; // 0 ~ 1
+                          return `rgb(${251 - ratio * (251 - 34)}, ${187 + ratio * (197 - 187)}, ${20 + ratio * (94 - 20)})`;
+                        }
+                      })(),
+                      borderColor: (() => {
+                        const val = selectedInfo.data.value;
+                        if (val < -0.3) return '#ef4444';
+                        if (val < 0.3) return '#fbbf24';
+                        return '#22c55e';
+                      })(),
+                      color: Math.abs(selectedInfo.data.value) > 0.5 ? '#ffffff' : '#1f2937'
+                    }}
+                  >
+                    <div className="text-sm font-medium text-center">
+                      현재 값: <span className="font-bold text-2xl">{selectedInfo.data.value.toFixed(3)}</span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 text-center mt-2">
+                    연결: {selectedInfo.data.from} → {selectedInfo.data.to}
+                  </div>
+                </div>
+              )}
+
+              {/* Hidden/Output 노드 정보 (읽기 전용) */}
+              {selectedInfo.type === 'node' && !selectedInfo.data.id.startsWith('x') && (
+                <div className="space-y-4">
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <div className="text-sm text-purple-700 mb-2">계산된 값 (읽기 전용)</div>
+                    <div className="text-2xl font-bold text-purple-900">
+                      {selectedInfo.data.value.toFixed(4)}
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    이 값은 입력 값과 가중치에 의해 자동으로 계산됩니다.
+                  </div>
+                </div>
               )}
             </div>
+
+            {/* 오른쪽: 역전파 정보 */}
+            {selectedInfo.type === 'weight' && (() => {
+              const backpropInfo = getBackpropInfo(selectedInfo);
+              return backpropInfo && (
+                <div className="flex-1 border-l border-gray-200 pl-6">
+                  <h4 className="text-lg font-bold text-gray-800 mb-4">역전파 정보</h4>
+                  
+                  <div className="flex gap-4">
+                    {/* y1에 대한 영향 */}
+                    {backpropInfo.y1 && (
+                      <div className="flex-1 bg-gradient-to-br from-pink-50 to-rose-50 rounded-xl p-4">
+                        <div className="text-sm font-medium text-gray-700 mb-2">y₁에 대한 영향</div>
+                        <div className="space-y-2">
+                          <div>
+                            <div className="text-xs text-gray-600">미분값:</div>
+                            <div className="font-mono font-bold text-lg">{backpropInfo.y1.weightLabel}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600">현재 값:</div>
+                            <div className="font-mono font-bold text-lg">{backpropInfo.y1.derivative.toFixed(3)}</div>
+                          </div>
+                          <div className={`mt-2 p-2 rounded-lg ${
+                            backpropInfo.y1.derivative > 0 
+                              ? 'bg-green-100 border border-green-300' 
+                              : 'bg-red-100 border border-red-300'
+                          }`}>
+                            <div className="text-xs font-medium">
+                              {backpropInfo.y1.derivative > 0 ? '✓ ' : '✗ '}
+                              가중치 증가 시 y₁
+                              <span className="font-bold ml-1">
+                                {backpropInfo.y1.effect}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* y2에 대한 영향 */}
+                    {backpropInfo.y2 && (
+                      <div className="flex-1 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4">
+                        <div className="text-sm font-medium text-gray-700 mb-2">y₂에 대한 영향</div>
+                        <div className="space-y-2">
+                          <div>
+                            <div className="text-xs text-gray-600">미분값:</div>
+                            <div className="font-mono font-bold text-lg">{backpropInfo.y2.weightLabel}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-600">현재 값:</div>
+                            <div className="font-mono font-bold text-lg">{backpropInfo.y2.derivative.toFixed(3)}</div>
+                          </div>
+                          <div className={`mt-2 p-2 rounded-lg ${
+                            backpropInfo.y2.derivative > 0 
+                              ? 'bg-green-100 border border-green-300' 
+                              : 'bg-red-100 border border-red-300'
+                          }`}>
+                            <div className="text-xs font-medium">
+                              {backpropInfo.y2.derivative > 0 ? '✓ ' : '✗ '}
+                              가중치 증가 시 y₂
+                              <span className="font-bold ml-1">
+                                {backpropInfo.y2.effect}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                    <div className="text-xs text-gray-600">
+                      <strong>역전파 원리:</strong> W⁽¹⁾는 W⁽²⁾를 통해, W⁽²⁾는 a⁽¹⁾에 비례하여 y에 영향을 미칩니다.
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
-
-          {/* 입력 노드 설정 */}
-          {selectedInfo.type === 'node' && selectedInfo.data.id.startsWith('x') && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  입력 값
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={selectedInfo.data.value}
-                  onChange={(e) => updateInputValue(selectedInfo.data.id, e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                />
-              </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <div className="text-sm text-blue-800">
-                  현재 값: <span className="font-semibold">{selectedInfo.data.value.toFixed(3)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 가중치 설정 */}
-          {selectedInfo.type === 'weight' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  가중치 값
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={selectedInfo.data.value}
-                  onChange={(e) => {
-                    const id = selectedInfo.data.id;
-                    if (id.startsWith('w1_')) {
-                      const key = 'w' + id.slice(3);
-                      updateWeight1(key, e.target.value);
-                    } else if (id.startsWith('w2_')) {
-                      const key = 'w' + id.slice(3);
-                      updateWeight2(key, e.target.value);
-                    }
-                  }}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                />
-              </div>
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <div className="text-sm text-green-800">
-                  현재 값: <span className="font-semibold">{selectedInfo.data.value.toFixed(3)}</span>
-                </div>
-              </div>
-              <div className="text-xs text-gray-500 mt-2">
-                연결: {selectedInfo.data.from} → {selectedInfo.data.to}
-              </div>
-            </div>
-          )}
-
-          {/* Hidden/Output 노드 정보 (읽기 전용) */}
-          {selectedInfo.type === 'node' && !selectedInfo.data.id.startsWith('x') && (
-            <div className="space-y-4">
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <div className="text-sm text-purple-700 mb-2">계산된 값 (읽기 전용)</div>
-                <div className="text-2xl font-bold text-purple-900">
-                  {selectedInfo.data.value.toFixed(4)}
-                </div>
-              </div>
-              <div className="text-xs text-gray-500">
-                이 값은 입력 값과 가중치에 의해 자동으로 계산됩니다.
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
