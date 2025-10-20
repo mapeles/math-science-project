@@ -4,29 +4,36 @@ import { useState } from 'react';
 
 const NeuralNetworkDiagram = () => {
   // 신경망 값들을 상태로 관리
-  const [inputValues, setInputValues] = useState({ x1: 1.0, x2: 0.5 });
+  const [inputValues, setInputValues] = useState({ x1: 1.0, x2: 0 });
   
+  // Hidden Layer 가중치
+  // a1: OR 게이트 (둘 중 하나라도 1이면 활성화)
+  // a2: AND 게이트 (둘 다 1이어야 활성화)
+  // a3: 사용 안 함
   const [weights1, setWeights1] = useState({
-    w11: 0.5, w21: -0.3, w31: 0.8,
-    w12: 0.2, w22: 0.6, w32: -0.4
+    w11: 20.0,  w21: 20.0,  w31: 0.0,   // x1 → hidden
+    w12: 20.0,  w22: 20.0,  w32: 0.0    // x2 → hidden
   });
   
+  // Output Layer 가중치
+  // y1 (출력=1): a1 강화, a2 억제
+  // y2 (출력=0): a1 억제, a2 강화
   const [weights2, setWeights2] = useState({
-    w11: 0.7, w21: -0.2,
-    w12: 0.3, w22: 0.9,
-    w13: -0.5, w23: 0.4
+    w11: 20.0,  w21: -20.0,  // a1 → output
+    w12: -20.0, w22: 20.0,   // a2 → output
+    w13: 0.0,   w23: 0.0     // a3 → output
   });
 
-  // 편향(bias) 추가
+  // 편향(bias)
   const [biases1, setBiases1] = useState({
-    b1: 0.0,
-    b2: 0.0,
-    b3: 0.0
+    b1: -10.0,  // OR: 하나만 있어도 활성화
+    b2: -30.0,  // AND: 둘 다 있어야 활성화
+    b3: 0.0     // 사용 안 함
   });
 
   const [biases2, setBiases2] = useState({
-    b1: 0.0,
-    b2: 0.0
+    b1: -10.0,  // y1 조정
+    b2: 10.0    // y2 조정
   });
 
   // 선택된 요소 추적
@@ -613,9 +620,9 @@ const NeuralNetworkDiagram = () => {
                     <div className="space-y-3">
                       <input
                         type="range"
-                        min="-1"
-                        max="1"
-                        step="0.01"
+                        min="-20"
+                        max="20"
+                        step="0.05"
                         value={selectedInfo.data.value}
                         onChange={(e) => {
                           const id = selectedInfo.data.id;
@@ -636,9 +643,9 @@ const NeuralNetworkDiagram = () => {
                         }}
                       />
                       <div className="flex justify-between text-xs text-gray-500">
-                        <span>-1.0</span>
+                        <span>-20.0</span>
                         <span>0.0</span>
-                        <span>1.0</span>
+                        <span>20.0</span>
                       </div>
                     </div>
                   </div>
@@ -647,27 +654,28 @@ const NeuralNetworkDiagram = () => {
                     style={{
                       backgroundColor: (() => {
                         const val = selectedInfo.data.value;
+                        const maxVal = 20;
                         if (val < 0) {
-                          // -1 ~ 0: 빨간색에서 노란색으로
-                          const ratio = (val + 1); // 0 ~ 1
+                          // -20 ~ 0: 빨간색에서 노란색으로
+                          const ratio = (val + maxVal) / maxVal; // 0 ~ 1
                           return `rgb(${239 - ratio * (239 - 251)}, ${68 + ratio * (187 - 68)}, ${68 + ratio * (20 - 68)})`;
                         } else {
-                          // 0 ~ 1: 노란색에서 초록색으로
-                          const ratio = val; // 0 ~ 1
+                          // 0 ~ 20: 노란색에서 초록색으로
+                          const ratio = val / maxVal; // 0 ~ 1
                           return `rgb(${251 - ratio * (251 - 34)}, ${187 + ratio * (197 - 187)}, ${20 + ratio * (94 - 20)})`;
                         }
                       })(),
                       borderColor: (() => {
                         const val = selectedInfo.data.value;
-                        if (val < -0.3) return '#ef4444';
-                        if (val < 0.3) return '#fbbf24';
+                        if (val < -5) return '#ef4444';
+                        if (val < 5) return '#fbbf24';
                         return '#22c55e';
                       })(),
-                      color: Math.abs(selectedInfo.data.value) > 0.5 ? '#ffffff' : '#1f2937'
+                      color: Math.abs(selectedInfo.data.value) > 10 ? '#ffffff' : '#1f2937'
                     }}
                   >
                     <div className="text-sm font-medium text-center">
-                      현재 값: <span className="font-bold text-2xl">{selectedInfo.data.value.toFixed(3)}</span>
+                      현재 값: <span className="font-bold text-2xl">{selectedInfo.data.value.toFixed(1)}</span>
                     </div>
                   </div>
                   <div className="text-xs text-gray-500 text-center mt-2">
@@ -701,9 +709,9 @@ const NeuralNetworkDiagram = () => {
                     <div className="space-y-3">
                       <input
                         type="range"
-                        min="-10"
-                        max="10"
-                        step="0.1"
+                        min="-30"
+                        max="30"
+                        step="0.05"
                         value={selectedInfo.data.value}
                         onChange={(e) => {
                           const id = selectedInfo.data.id;
@@ -718,15 +726,15 @@ const NeuralNetworkDiagram = () => {
                         className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
                       />
                       <div className="flex justify-between text-xs text-gray-500">
-                        <span>-10.0</span>
+                        <span>-30.0</span>
                         <span>0.0</span>
-                        <span>10.0</span>
+                        <span>30.0</span>
                       </div>
                     </div>
                   </div>
                   <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-3">
                     <div className="text-sm font-medium text-center text-orange-900">
-                      현재 값: <span className="font-bold text-2xl">{selectedInfo.data.value.toFixed(2)}</span>
+                      현재 값: <span className="font-bold text-2xl">{selectedInfo.data.value.toFixed(1)}</span>
                     </div>
                   </div>
                   <div className="text-xs text-gray-500 text-center">
